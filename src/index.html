@@ -1,0 +1,375 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sanntidskart for Horten Kommune">
+    <meta name="keywords" content="Live kart Horten">
+    <meta name="language" content="nb">
+    <title>Sanntidskart - Horten Kommune</title>
+    <link rel="shortcut icon" href="https://horten.kommune.no/kunde/favicon.ico">
+    <style>
+        body {
+            background-color: #006699;
+            font-family: Calibri, Futura, 'Helvetica Neue', Arial;
+            /* Font is not applied to popups because of .leaflet-container in .css-file overwrites :( */
+        }
+
+        html,
+        body,
+        iframe {
+            margin: 0;
+            padding: 0;
+        }
+
+        .logo-watermark {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            margin-left: -66px;
+            z-index: 2;
+            pointer-events: none;
+            /* Makes watermark */
+        }
+
+        @media (hover: none) {
+            .leaflet-tooltip-pane {
+                display: none;
+            }
+        }
+
+        .flex-container {
+            display: flex;
+            height: 100%;
+        }
+
+        .flex-box {
+            background-color: #fff;
+            text-align: left;
+        }
+
+        .closeX {
+            float: right;
+            margin: -26px -18px;
+            color: #f00;
+            font-weight: bold;
+            font-size: 26px;
+            cursor: pointer;
+        }
+
+        /* The Modal (background) */
+        .modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 3;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            /*overflow: auto;*/
+            /* Enable scroll if needed */
+            background-color: rgb(0, 0, 0);
+            /* Fallback color */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+            margin: 0;
+        }
+
+        /* Modal Content/Box */
+        .modal-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fefefe;
+            margin: auto;
+            overflow: auto;
+            padding: 20px;
+            width: 80%;
+            height: 80%;
+            /* Could be more or less, depending on screen size */
+        }
+
+
+        /* Styles for divIcon */
+        .marker-pin {
+            width: 30px;
+            height: 30px;
+            border-radius: 50% 50% 50% 0;
+            background: #c30b82;
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            margin: -15px 0 0 -15px;
+        }
+
+        /* to draw white circle */
+        .marker-pin::after {
+            content: '';
+            width: 24px;
+            height: 24px;
+            margin: 3px 0 0 3px;
+            background: #fff;
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        /* to align icon */
+        .custom-div-icon i {
+            position: absolute;
+            width: 22px;
+            font-size: 22px;
+            left: 0;
+            right: 0;
+            margin: 10px auto;
+            text-align: center;
+        }
+    </style>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+
+    <!-- Google's Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- End Google's Material Icons -->
+    <!-- Leaflet plugin: MarkerClusters -->
+    <script src="js/leaflet.markercluster.js"></script>
+    <link href="css/MarkerCluster.css" rel="stylesheet">
+    <link href="css/MarkerCluster.Default.css" rel="stylesheet">
+    <!-- End of import for plugin: MarkerClusters -->
+    <!-- Leaflet plugin: FeatureGroup.SubGroup. Thanks to ghybs @ github for this wonderful plugin. Copyright belongs to ghybs. -->
+    <!-- https://stackoverflow.com/questions/51544086/using-several-marker-cluster-groups-displays-overlapping-clusters/51549989#51549989 -->
+    <!-- https://github.com/Leaflet/Leaflet.markercluster -->
+    <script src="js/leaflet.featuregroup.subgroup.js"></script>
+    <!-- End of import for plugin: FeatureGroup.SubGroup -->
+    <!-- Import main function MapMaker -->
+    <script src="js/MapMaker.js"></script>
+    <!-- End of import MapMaker-->
+    <!-- Import main function ajax -->
+    <script src="js/ajax.js"></script>
+    <!-- End of import ajax -->
+
+</head>
+
+<body>
+    <div id="myModal" class="modal">
+        <div class="modal-box">
+            <span class="closeX">&times;</span>
+            <div id="modal-content">Test</div>
+        </div>
+    </div>
+    <img class="logo-watermark"
+        src="https://www.horten.kommune.no/design/horten_kommune/horten/v2016/assets/images/logo-forside.png"
+        height="60px">
+    <div class="flex-container">
+        <div id="mapid" class="flex-box" style="z-index: 1; flex-grow:8;">&nbsp;
+        </div>
+    </div>
+    <script>
+        // Init mymap, main holder of the whole Leaflet thingie. Sets view and writes al to div 'mapid'
+        var mymap = L.map('mapid').setView([59.416, 10.462], 12);
+
+        // Statkart gratis kart fra Kartverket, funker kanskje ikke fra utlandet!
+        var base_layer = L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png',
+            {
+                attribution: '&copy; <a href="http://www.kartverket.no/">Kartverket</a>'
+            }).addTo(mymap);
+
+        // Statkart graatone gratis kart fra Kartverket, funker kanskje ikke fra utlandet!
+        var base_layer_grey = L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png',
+            {
+                attribution: '&copy; <a href="http://www.kartverket.no/">Kartverket gråtone</a>'
+            });
+        
+        // Statkart alternativt kartlag topo4
+        var topo4_layer = L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png',
+            {
+                attribution: '<a href="https://kartverket.no/">Kartverket</a>',
+                maxZoom: 19
+            });
+
+        // OpenStreetMap, ikke lov å bruke fritt. Kun for test.
+        var osm_layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        // show the scale bar on the lower left corner
+        L.control.scale().addTo(mymap);
+
+        // Show layer control on the map.
+        // Add more by calling layer_control_widget.addOverlay/addBaseLayer
+        var layer_control_widget = L.control.layers({
+            "Kartverk-kart": base_layer,
+            "Kartverk-kart gråtone": base_layer_grey,
+            "Topo4": topo4_layer,
+            "OpenStreetMap": osm_layer
+        }, undefined, // undefined overlay object, these are rather added in by modules/MapMaker
+            {
+                collapsed: true
+            }).addTo(mymap);
+
+        // Prepare a global ClusterGroup to make any layer be able to cluster to this parent
+        // Woop 4th of June 2021: commented away options, as default behaviour looks better if we have multiple sensors in the same spot. Gonna try this for a while.
+        var globalClusterGroup = L.markerClusterGroup({ /*disableClusteringAtZoom: 15/*, spiderfyOnMaxZoom: false */ }).addTo(mymap);
+
+        // Do specific things based on URLSearchParams, ex: (index.html?this&that=thatValue)
+        var urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has("gpsdebug")) {
+            // Show LatLong when right-clicking in map, used for development.
+            mymap.on('contextmenu', function (e) {
+                alert("Lat, Lon : " + e.latlng.lat + ", " + e.latlng.lng)
+            });
+        }
+        if (urlParams.has("autoUpdate")) {
+            // Reloads each 1000ms*60s = 60s. Made for info screen.
+            var theFinalCountdown = new Date().getTime();
+            document.addEventListener("mousemove", function (e) {
+                theFinalCountdown = new Date().getTime();
+            });
+
+            function refreshPage() {
+                if (new Date().getTime() - theFinalCountdown >= 60000)
+                    window.location.reload(true);
+                else
+                    setTimeout(refreshPage, 10000);
+            }
+
+            setTimeout(refreshPage, 10000);
+        }
+
+        // IconGenerator for Material Icons
+        function materialIcon(tag = "place", bgcolor = "#fff") {
+            return new L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style='background-color:${bgcolor}' class='marker-pin'></div><i class='material-icons'>${tag}</i>`,
+                iconSize: [30, 42],
+                iconAnchor: [15, 42], // Places icon with arrow on spot, instead of TopLeft on spot
+                popupAnchor: [0, -32], // Top of icon
+                tooltipAnchor: [15, -21] // Side of icon
+            });
+        }
+
+        /* Modal js */
+        // Grab modal element
+        const modal = document.querySelector("#myModal");
+        // Add listener and check if clicked on modal (which is fullscreen)
+        modal.addEventListener('click', (e) => {
+            // React only on modal itself, not child elements
+            if (e.target == modal) {
+                modal.style.display = "none";
+            }
+        });
+        // Add listener to close-button and close if clicked
+        const closeButton = document.querySelector(".closeX");
+        closeButton.addEventListener('click', (e) => {
+            modal.style.display = "none";
+        });
+
+        // Add document listener for escape key 
+        document.addEventListener("keyup", (e) => {
+            // Close modal
+            modal.style.display = "none";
+            // And close any popups on the map as well
+            mymap.closePopup();
+        });
+
+        /*
+         * html2modal pops up a modal, takes html as input
+         * Ex:
+         * marker.on('click', function(e) { html2modal(`<pre>${JSON.stringify(geoJsonPoint.properties,null,2)}</pre>`) });
+         * Woops: Yes, wrap in function, don't call the function inside the on() function call!!
+         */
+
+        function html2modal(html) {
+            document.getElementById('myModal').style.display = 'block';
+            document.getElementById('modal-content').innerHTML = html;
+        }
+
+        /**
+         * Start adding stuff to map
+         * Tip: Use a wrapper not spill to global scope.
+         */
+
+
+    </script>
+
+    <!-- Script for henting av VKT sanntid info -->
+    <script type="text/javascript" src="vkt-sanntid.js"></script>
+    <script type="text/javascript">
+        // Generate icon for VKT bus markers
+        var bus_icon = new materialIcon("directions_bus", "#31b754");
+        // Add control, will be rewritten inside vkt-sanntid.js for each update though
+        //var vkt_layerGroup = L.layerGroup().addTo(mymap);
+        //var vkt_layerGroup = L.markerClusterGroup({ disableClusteringAtZoom: 15, spiderfyOnMaxZoom: false }).addTo(mymap);
+        var vkt_layerGroup = L.featureGroup.subGroup(
+            globalClusterGroup,
+            []
+        ).addTo(mymap);
+        layer_control_widget.addOverlay(vkt_layerGroup, "VKT sanntid");
+        // Send initial request to VKT
+        getVKTbuses();
+        // Send request at interval to get actually available routes
+        vkt_stopInfo = window.setInterval(getVKTbuses, 30000);
+        vkt_realtime = window.setInterval(getRealtimeBus, 1000);
+    </script>
+
+    <!-- Google Charts for testing/showoff purposes -->
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        google.charts.load('current', { 'packages': ['corechart'] });
+        var global_caller;
+
+        function drawChart(caller) {
+            var data = google.visualization.arrayToDataTable([
+                ['År', 'Vann mm', 'Temp \'c'],
+                ['2013', Math.floor(Math.random() * 1000), Math.floor(Math.random() * 100)],
+                ['2014', Math.floor(Math.random() * 1000), Math.floor(Math.random() * 100)],
+                ['2015', Math.floor(Math.random() * 1000), Math.floor(Math.random() * 100)],
+                ['2016', Math.floor(Math.random() * 1000), Math.floor(Math.random() * 100)]
+            ]);
+
+            var options = {
+                title: 'Kummåling',
+                hAxis: { title: 'Årstall', titleTextStyle: { color: '#333' } },
+                vAxis: { title: 'mm', minValue: 0 }
+            };
+
+            global_caller = caller;
+            var chart = new google.visualization.AreaChart(caller.parentElement);
+            chart.draw(data, options);
+        }
+    </script>
+
+    <!-- MapMaker modules -->
+    <!-- <script src="js/modules/hrt.androidgpstracker.js"></script> -->
+    <!--<script src="js/modules/hrt.auroraInneklima.js"></script>-->
+    <script src="js/modules/hrt.badevann.js"></script>
+    <script src="js/modules/hrt.bastofosen.js"></script>
+    <!--
+        Fjernet for sessongen, ikke lenger svar fra leverandor.
+        <script src="js/modules/hrt.broyting.js"></script>
+    -->
+    <!--
+        Removed since the current version is outdated and hard-coded
+        <script src="js/modules/hrt.loragateways.js"></script>
+    -->
+    <script src="js/modules/hrt.overflow.js"></script>
+    <script src="js/modules/hrt.sonarWaterlevel.js"></script>
+    <script src="js/modules/hrt.vaerstasjon.js"></script>
+    <script src="js/modules/hrt.webcams.js"></script>
+    <script src="js/modules/sfj.badevann.js"></script>
+    <!--<script src="js/modules/hrt.municipal_parking_spaces.js" referrerpolicy="strict-origin-when-cross-origin"></script>-->
+</body>
+
+</html>
